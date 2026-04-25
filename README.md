@@ -7,8 +7,10 @@
 
 ### How to use
 
-- git clone https://github.com/cqttv/PotatFarmer.git
-- cd to PotatFarmer directory
-- npm install
-- npm run build
-- npm run start
+```
+git clone https://github.com/cqttv/PotatFarmer.git
+cd /PotatFarmer
+npm install
+npm run build
+npm run start
+```

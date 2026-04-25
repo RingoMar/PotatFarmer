@@ -6,4 +6,3 @@ export const BEARER_TOKEN =
 export const API_URL =
   process.env["API_URL"] ?? "https://api.potat.app/execute";
 export const BOT_PREFIX = process.env["BOT_PREFIX"] ?? "#";
-export const LOG_LEVEL = process.env["LOG_LEVEL"] ?? "info";

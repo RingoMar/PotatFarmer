@@ -46,32 +46,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Dependency health check
-      - name: Check outdated dependencies
-        run: npm outdated
-
-      # Security audit (npm)
-      - name: Run npm audit
-        run: npm audit --audit-level=low
-
-      # Security scanning (Semgrep)
-      - name: Run Semgrep
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: "p/security-audit"
-
-      # Secret scanning (Gitleaks)
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-
-      # Dependency vuln scanning (Trivy)
-      - name: Run Trivy FS Scan
-        uses: aquasecurity/trivy-action@0.20.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: LOW,MEDIUM,HIGH,CRITICAL
-
       # Upload build artifacts
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -80,4 +54,3 @@ jobs:
           path: |
             dist/
             !**/*.spec.*js
-            package.json

@@ -1,21 +1,23 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "target": "esnext",
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ESNext"],
+    "verbatimModuleSyntax": true,
+    "types": ["node"],
 
-    "module": "ESNext",
-    "moduleResolution": "node",
-    "baseUrl": ".",
-    "paths": {
-      "@domain/*": ["src/domain/*"],
-      "@application/*": ["src/application/*"],
-      "@infrastructure/*": ["src/infrastructure/*"],
-      "@shared/*": ["src/shared/*"]
-    },
-    "types": ["vitest/globals", "node"],
-
-    "resolveJsonModule": true,
+    "rootDir": "src",
     "outDir": "dist",
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "erasableSyntaxOnly": true,
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "removeComments": true,
 
     "strict": true,
     "noImplicitAny": true,
@@ -35,28 +37,8 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
-    "allowUnusedLabels": true,
-    "allowUnreachableCode": true,
-    "isolatedModules": true,
-    "checkJs": true,
-    "skipLibCheck": true,
-    "erasableSyntaxOnly": true,
-    "noUncheckedSideEffectImports": true,
-    "lib": ["dom", "ESNext"],
-
-    "allowSyntheticDefaultImports": true,
-    "sourceMap": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "downlevelIteration": true,
-
-    "esModuleInterop": true,
-    "removeComments": true,
-    "declaration": true
+    "noUncheckedSideEffectImports": true
   },
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "Strictest",
-  "_version": "2.0.0",
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }

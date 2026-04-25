@@ -1,7 +1,8 @@
 .env
 .vscode
-/node_modules
+node_modules
 logs/*
 /coverage
-/dist
+dist/*
 .DS_Store
+data/*
