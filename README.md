@@ -14,3 +14,10 @@ npm install
 npm run build
 npm run start
 ```
+
+### For PM2
+
+```
+npm run start:pm2
+pm2 logs PotatFarmer
+```
