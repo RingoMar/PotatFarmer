@@ -1,4 +1,4 @@
-import { Actions } from "./plans.js";
+import { Actions, Rank, type RankValue } from "./plans.js";
 import {
   record,
   getTotals,
@@ -29,12 +29,23 @@ interface PlayerInfo {
   steals: number;
   stolenFrom: number;
   farmSize: string;
+  rank: RankValue;
   leaderboardRank: number;
   totalPlayers: number;
   lastCommand: string | null;
 }
 
-const playerInfo: PlayerInfo = {
+const RANK_BY_NAME = new Map<string, RankValue>([
+  ["Bankrupt", Rank.Bankrupt],
+  ["Backyard Garden", Rank.BackyardGarden],
+  ["Greenhouse", Rank.Greenhouse],
+  ["Acre Farm", Rank.AcreFarm],
+  ["10 Acre Farm", Rank.TenAcreFarm],
+  ["Potato Plantation", Rank.PotatoPlantation],
+  ["Industrial Potato Facility", Rank.Industrial],
+]);
+
+export const playerInfo: PlayerInfo = {
   username: "",
   potatoes: 0,
   prestige: 0,
@@ -42,6 +53,7 @@ const playerInfo: PlayerInfo = {
   steals: 0,
   stolenFrom: 0,
   farmSize: "",
+  rank: Rank.BackyardGarden as RankValue,
   leaderboardRank: 0,
   totalPlayers: 0,
   lastCommand: null,
@@ -49,7 +61,7 @@ const playerInfo: PlayerInfo = {
 
 export function updateFromRank(text: string): void {
   const username = text.match(/@(\w+)/)?.[1];
-  const potatoes = text.match(/has ([\d,]+) potatoes/)?.[1];
+  const potatoes = text.match(/has (-?[\d,]+) potatoes/)?.[1];
   const prestige = text.match(/Prestige: (\d+)/)?.[1];
   const harvests = text.match(/Harvests: ([\d,]+)/)?.[1];
   const steals = text.match(/Stole ([\d,]+) times?/)?.[1];
@@ -64,11 +76,26 @@ export function updateFromRank(text: string): void {
   if (steals) playerInfo.steals = parseInt(steals.replace(/,/g, ""), 10);
   if (stolenFrom)
     playerInfo.stolenFrom = parseInt(stolenFrom.replace(/,/g, ""), 10);
-  if (farmSize) playerInfo.farmSize = farmSize.trim();
+  if (farmSize) {
+    const trimmed = farmSize.trim();
+    playerInfo.farmSize = trimmed;
+    const rank = RANK_BY_NAME.get(trimmed);
+    if (rank !== undefined) playerInfo.rank = rank;
+  }
   if (rankMatch?.[1] && rankMatch[2]) {
     playerInfo.leaderboardRank = parseInt(rankMatch[1], 10);
     playerInfo.totalPlayers = parseInt(rankMatch[2], 10);
   }
+}
+
+// Matches the "[+N ⇒ total]" pattern in farm/steal/cdr/shop replies.
+const BALANCE_REGEX = /\[[+-][\d,]+\s*⇒\s*(-?[\d,]+)\]/;
+
+/** Pulls the running potato total out of a bot reply if one is present. */
+export function updateBalanceFromResponse(text: string): void {
+  const match = text.match(BALANCE_REGEX);
+  if (!match?.[1]) return;
+  playerInfo.potatoes = parseInt(match[1].replace(/,/g, ""), 10);
 }
 
 export function setLastCommand(command: string): void {
@@ -83,7 +110,6 @@ const sessionStart = Date.now();
 const TRACKED_COMMANDS: ReadonlySet<string> = new Set([
   Actions.FARM,
   Actions.STEAL,
-  Actions.TRAMPLE,
   Actions.RANKUP,
   Actions.PRESTIGE,
 ]);
@@ -124,6 +150,7 @@ export function recordCommandResult(
 ): void {
   if (responseText === null || COOLDOWN_REGEX.test(responseText)) return;
   if (command === Actions.FARM && /♻⏰/.test(responseText)) return;
+  updateBalanceFromResponse(responseText);
   if (!TRACKED_COMMANDS.has(command)) return;
 
   const delta = parseDelta(command, responseText, isError);
@@ -135,8 +162,6 @@ export function recordCommandResult(
     steal: command === Actions.STEAL ? delta : 0,
     stealAttempts: command === Actions.STEAL ? 1 : 0,
     stealSuccesses: command === Actions.STEAL && delta > 0 ? 1 : 0,
-    trampleAttempts: command === Actions.TRAMPLE ? 1 : 0,
-    trampleSuccesses: command === Actions.TRAMPLE && !isError ? 1 : 0,
     rankups: command === Actions.RANKUP && !isError ? 1 : 0,
     prestiges: command === Actions.PRESTIGE && !isError ? 1 : 0,
   };
@@ -149,8 +174,6 @@ export function recordCommandResult(
   sessionTotals.steal += increment.steal;
   sessionTotals.stealAttempts += increment.stealAttempts;
   sessionTotals.stealSuccesses += increment.stealSuccesses;
-  sessionTotals.trampleAttempts += increment.trampleAttempts;
-  sessionTotals.trampleSuccesses += increment.trampleSuccesses;
   sessionTotals.rankups += increment.rankups;
   sessionTotals.prestiges += increment.prestiges;
 }
@@ -241,10 +264,6 @@ function buildStatsRows(stats: StatsRow): string[] {
         stats.steal,
       ),
     );
-  if (stats.trampleAttempts > 0)
-    rows.push(
-      commandStatRow("Trample:", stats.trampleSuccesses, stats.trampleAttempts),
-    );
   if (stats.rankups > 0)
     rows.push(tableRow("Rank Ups:", formatNumber(stats.rankups), ANSI.cyan));
   if (stats.prestiges > 0)
@@ -280,7 +299,7 @@ export function displayStats(): void {
     tableRow(
       "Potatoes:",
       isLoaded ? formatNumber(playerInfo.potatoes) : "Loading...",
-      ANSI.green,
+      playerInfo.potatoes < 0 ? ANSI.red : ANSI.green,
     ),
     tableRow(
       "Prestige:",
