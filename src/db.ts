@@ -16,8 +16,6 @@ db.exec(`
     steal            INTEGER NOT NULL DEFAULT 0,
     stealAttempts    INTEGER NOT NULL DEFAULT 0,
     stealSuccesses   INTEGER NOT NULL DEFAULT 0,
-    trampleAttempts  INTEGER NOT NULL DEFAULT 0,
-    trampleSuccesses INTEGER NOT NULL DEFAULT 0,
     rankups          INTEGER NOT NULL DEFAULT 0,
     prestiges        INTEGER NOT NULL DEFAULT 0
   );
@@ -31,8 +29,6 @@ db.exec(`
     steal            INTEGER NOT NULL DEFAULT 0,
     stealAttempts    INTEGER NOT NULL DEFAULT 0,
     stealSuccesses   INTEGER NOT NULL DEFAULT 0,
-    trampleAttempts  INTEGER NOT NULL DEFAULT 0,
-    trampleSuccesses INTEGER NOT NULL DEFAULT 0,
     rankups          INTEGER NOT NULL DEFAULT 0,
     prestiges        INTEGER NOT NULL DEFAULT 0
   );
@@ -45,8 +41,6 @@ export interface StatsRow {
   steal: number;
   stealAttempts: number;
   stealSuccesses: number;
-  trampleAttempts: number;
-  trampleSuccesses: number;
   rankups: number;
   prestiges: number;
 }
@@ -58,8 +52,6 @@ export const ZERO_STATS: StatsRow = {
   steal: 0,
   stealAttempts: 0,
   stealSuccesses: 0,
-  trampleAttempts: 0,
-  trampleSuccesses: 0,
   rankups: 0,
   prestiges: 0,
 };
@@ -72,16 +64,14 @@ const updateTotals = db.prepare(`
     steal            = steal            + @steal,
     stealAttempts    = stealAttempts    + @stealAttempts,
     stealSuccesses   = stealSuccesses   + @stealSuccesses,
-    trampleAttempts  = trampleAttempts  + @trampleAttempts,
-    trampleSuccesses = trampleSuccesses + @trampleSuccesses,
     rankups          = rankups          + @rankups,
     prestiges        = prestiges        + @prestiges
   WHERE id = 1
 `);
 
 const upsertDaily = db.prepare(`
-  INSERT INTO daily (date, farm, farmAttempts, farmSuccesses, steal, stealAttempts, stealSuccesses, trampleAttempts, trampleSuccesses, rankups, prestiges)
-  VALUES (@date, @farm, @farmAttempts, @farmSuccesses, @steal, @stealAttempts, @stealSuccesses, @trampleAttempts, @trampleSuccesses, @rankups, @prestiges)
+  INSERT INTO daily (date, farm, farmAttempts, farmSuccesses, steal, stealAttempts, stealSuccesses, rankups, prestiges)
+  VALUES (@date, @farm, @farmAttempts, @farmSuccesses, @steal, @stealAttempts, @stealSuccesses, @rankups, @prestiges)
   ON CONFLICT(date) DO UPDATE SET
     farm             = farm             + excluded.farm,
     farmAttempts     = farmAttempts     + excluded.farmAttempts,
@@ -89,8 +79,6 @@ const upsertDaily = db.prepare(`
     steal            = steal            + excluded.steal,
     stealAttempts    = stealAttempts    + excluded.stealAttempts,
     stealSuccesses   = stealSuccesses   + excluded.stealSuccesses,
-    trampleAttempts  = trampleAttempts  + excluded.trampleAttempts,
-    trampleSuccesses = trampleSuccesses + excluded.trampleSuccesses,
     rankups          = rankups          + excluded.rankups,
     prestiges        = prestiges        + excluded.prestiges
 `);
@@ -102,10 +90,10 @@ export function record(d: StatsRow): void {
 }
 
 const getTotalsStmt = db.prepare(
-  "SELECT farm, farmAttempts, farmSuccesses, steal, stealAttempts, stealSuccesses, trampleAttempts, trampleSuccesses, rankups, prestiges FROM totals WHERE id = 1",
+  "SELECT farm, farmAttempts, farmSuccesses, steal, stealAttempts, stealSuccesses, rankups, prestiges FROM totals WHERE id = 1",
 );
 const getDailyStmt = db.prepare(
-  "SELECT farm, farmAttempts, farmSuccesses, steal, stealAttempts, stealSuccesses, trampleAttempts, trampleSuccesses, rankups, prestiges FROM daily WHERE date = ?",
+  "SELECT farm, farmAttempts, farmSuccesses, steal, stealAttempts, stealSuccesses, rankups, prestiges FROM daily WHERE date = ?",
 );
 
 export function getTotals(): StatsRow {
