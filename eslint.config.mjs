@@ -7,6 +7,7 @@ import securityPlugin from "eslint-plugin-security";
 import prettierPlugin from "eslint-plugin-prettier";
 
 export default [
+  { ignores: ["dist/"] },
   js.configs.recommended,
   {
     files: ["**/*.ts", "**/*.tsx"],
@@ -23,6 +24,7 @@ export default [
         setTimeout: "readonly",
         clearTimeout: "readonly",
         AbortController: "readonly",
+        AbortSignal: "readonly",
         NodeJS: "readonly",
         __dirname: "readonly",
         Buffer: "readonly",

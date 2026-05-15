@@ -1,11 +1,5 @@
 import { Actions, Rank, type RankValue } from "./plans.js";
-import {
-  record,
-  getTotals,
-  getToday,
-  ZERO_STATS,
-  type StatsRow,
-} from "./db.js";
+import { record, cache, ZERO_STATS, type StatsRow } from "./db.js";
 
 const ANSI = {
   reset: "\x1b[0m",
@@ -104,8 +98,8 @@ export function setLastCommand(command: string): void {
 
 const CLEAR_SEQ = "\x1Bc";
 
-const sessionTotals: StatsRow = { ...ZERO_STATS };
-const sessionStart = Date.now();
+export const sessionTotals: StatsRow = { ...ZERO_STATS };
+export const sessionStart = Date.now();
 
 const TRACKED_COMMANDS: ReadonlySet<string> = new Set([
   Actions.FARM,
@@ -168,18 +162,14 @@ export function recordCommandResult(
 
   record(increment);
 
-  sessionTotals.farm += increment.farm;
-  sessionTotals.farmAttempts += increment.farmAttempts;
-  sessionTotals.farmSuccesses += increment.farmSuccesses;
-  sessionTotals.steal += increment.steal;
-  sessionTotals.stealAttempts += increment.stealAttempts;
-  sessionTotals.stealSuccesses += increment.stealSuccesses;
-  sessionTotals.rankups += increment.rankups;
-  sessionTotals.prestiges += increment.prestiges;
+  for (const key of Object.keys(increment) as (keyof StatsRow)[]) {
+    // eslint-disable-next-line security/detect-object-injection
+    sessionTotals[key] += increment[key];
+  }
 }
 
 function formatNumber(n: number): string {
-  return n.toLocaleString("en-US");
+  return n.toLocaleString();
 }
 
 function formatDuration(ms: number): string {
@@ -195,22 +185,24 @@ function formatDuration(ms: number): string {
 // eslint-disable-next-line no-control-regex
 const ANSI_ESCAPE = /\x1b\[[0-9;]*m/g;
 
+const LABEL_WIDTH = 20;
+let renderW = 0;
+
 function tableRow(label: string, value: string, valueColor = ""): string {
-  const LABEL_WIDTH = 20;
   const labelCell = `  ${label}`.padEnd(LABEL_WIDTH);
-  const valueSpace = getTermWidth() - LABEL_WIDTH;
+  const valueSpace = renderW - LABEL_WIDTH;
   const visibleLength = value.replace(ANSI_ESCAPE, "").length;
   const padding = " ".repeat(Math.max(0, valueSpace - visibleLength));
   return `║${ANSI.dim}${labelCell}${ANSI.reset}${valueColor}${value}${ANSI.reset}${padding}║`;
 }
 
 function divider(): string {
-  return `╠${"═".repeat(getTermWidth())}╣`;
+  return `╠${"═".repeat(renderW)}╣`;
 }
 
 function sectionHeader(label: string): string {
   const inner = ` ${label} `;
-  const fill = getTermWidth() - inner.length;
+  const fill = renderW - inner.length;
   const leftFill = Math.floor(fill / 2);
   const rightFill = fill - leftFill;
   return `╠${"═".repeat(leftFill)}${ANSI.cyan}${ANSI.bold}${inner}${ANSI.reset}${"═".repeat(rightFill)}╣`;
@@ -281,7 +273,8 @@ function buildStatsRows(stats: StatsRow): string[] {
 }
 
 export function displayStats(): void {
-  const W = getTermWidth();
+  renderW = getTermWidth();
+  const W = renderW;
   const isLoaded = playerInfo.username !== "";
   const title = "POTAT FARMER";
   const leftPad = Math.floor((W - title.length) / 2);
@@ -327,9 +320,11 @@ export function displayStats(): void {
     sectionHeader(`Session  ${formatDuration(Date.now() - sessionStart)}`),
     ...buildStatsRows(sessionTotals),
     sectionHeader("Today"),
-    ...buildStatsRows(getToday()),
+    ...buildStatsRows(cache.today),
+    sectionHeader("Last 7 Days"),
+    ...buildStatsRows(cache.week),
     sectionHeader("All Time"),
-    ...buildStatsRows(getTotals()),
+    ...buildStatsRows(cache.totals),
     divider(),
     tableRow("Last Command:", playerInfo.lastCommand ?? "–", ANSI.yellow),
     `╚${"═".repeat(W)}╝`,
