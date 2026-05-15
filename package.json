@@ -7,13 +7,13 @@
     "lint:fix": "eslint ./src --fix",
     "build": "tsdown",
     "type-check": "tsc --noEmit",
-    "start": "node dist/main.mjs",
-    "start:dev": "npx tsx src/main.ts",
-    "start:pm2": "pm2 start dist/main.mjs --name PotatFarmer"
+    "start": "node --env-file=.env dist/main.mjs",
+    "start:dev": "npx tsx --env-file=.env src/main.ts",
+    "start:pm2": "pm2 start dist/main.mjs --name PotatFarmer --node-args='--env-file=.env'"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
     "eslint": "^9.35.0",
@@ -24,11 +24,5 @@
     "tsdown": "^0.21.10",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
-  },
-  "dependencies": {
-    "better-sqlite3": "^12.9.0",
-    "dotenv": "^17.2.2",
-    "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0"
   }
 }

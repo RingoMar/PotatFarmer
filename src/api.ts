@@ -1,5 +1,4 @@
 import { BEARER_TOKEN, API_URL, BOT_PREFIX } from "./utils/config.js";
-import { logger } from "./utils/logger.js";
 import { Actions } from "./plans.js";
 
 export interface CommandResult {
@@ -19,10 +18,6 @@ interface ApiResponse {
 }
 
 export async function sendCommand(command: string): Promise<CommandResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    controller.abort();
-  }, 10_000);
   const response = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -30,9 +25,7 @@ export async function sendCommand(command: string): Promise<CommandResult> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ text: `${BOT_PREFIX}${command}` }),
-    signal: controller.signal,
-  }).finally(() => {
-    clearTimeout(timeout);
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -54,8 +47,7 @@ export async function fetchRank(): Promise<string | null> {
   try {
     const { text } = await sendCommand(Actions.RANK);
     return text;
-  } catch (err) {
-    logger.error(`rank: ${String(err)}`);
+  } catch {
     return null;
   }
 }
