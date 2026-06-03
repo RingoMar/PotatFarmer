@@ -27,6 +27,29 @@ export const Rank = {
 
 export type RankValue = (typeof Rank)[keyof typeof Rank];
 
+const RANK_COSTS: Record<RankValue, number> = {
+  [Rank.Bankrupt]: -1000,
+  [Rank.BackyardGarden]: 200,
+  [Rank.Greenhouse]: 1000,
+  [Rank.AcreFarm]: 5000,
+  [Rank.TenAcreFarm]: 10000,
+  [Rank.PotatoPlantation]: 25000,
+  [Rank.Industrial]: 50000,
+};
+
+const SHOP_BASE_COSTS = {
+  [Actions.SHOP_CDR]: 500,
+  [Actions.SHOP_GUARD]: 1500,
+  [Actions.SHOP_FERTILIZER]: 2000,
+} as const;
+
+const LOW_BALANCE_RESERVE = 500;
+const STEAL_RESERVE = 2000;
+const CDR_MIN_SURPLUS = 1500;
+const SHOP_MIN_SURPLUS = 5000;
+const PRESTIGE_BASE_COST = 100000;
+const PRESTIGE_STEP_COST = 20000;
+
 // cdr has no server-side rejection if you can't afford it — it just silently
 // goes negative. Cost is floor(15 * rank * (1 + prestige * 0.1)).
 function cdrCost(rank: RankValue, prestige: number): number {
@@ -35,11 +58,66 @@ function cdrCost(rank: RankValue, prestige: number): number {
   return Math.floor(15 * effectiveRank * prestigeMulti);
 }
 
-export function shouldRun(command: Command, { potatoes, rank, prestige }: { potatoes: number; rank: RankValue; prestige: number }): boolean {
-  if (command === Actions.CDR) {
-    // 100 potato buffer on top of the cost
-    return potatoes >= cdrCost(rank, prestige) + 100;
+function nextRankCost(rank: RankValue): number | null {
+  if (rank >= Rank.Industrial) return null;
+  return RANK_COSTS[(rank + 1) as RankValue] ?? null;
+}
+
+function shopCost(command: Command, rank: RankValue): number {
+  const baseCost = SHOP_BASE_COSTS[command as keyof typeof SHOP_BASE_COSTS];
+  if (!baseCost) return 0;
+  return baseCost * Math.max(1, rank);
+}
+
+function protectedBalance(rank: RankValue): number {
+  const nextCost = nextRankCost(rank);
+  if (nextCost === null) return LOW_BALANCE_RESERVE;
+  return nextCost + LOW_BALANCE_RESERVE;
+}
+
+function hasSurplus(
+  potatoes: number,
+  rank: RankValue,
+  cost: number,
+  surplus: number,
+): boolean {
+  return potatoes - cost >= protectedBalance(rank) + surplus;
+}
+
+export function shouldRun(
+  command: Command,
+  {
+    potatoes,
+    rank,
+    prestige,
+  }: { potatoes: number; rank: RankValue; prestige: number },
+): boolean {
+  const nextCost = nextRankCost(rank);
+
+  if (command === Actions.RANKUP) {
+    return nextCost !== null && potatoes >= nextCost;
   }
+
+  if (command === Actions.PRESTIGE) {
+    return rank === Rank.Industrial && potatoes >= PRESTIGE_BASE_COST + PRESTIGE_STEP_COST * prestige;
+  }
+
+  if (potatoes < LOW_BALANCE_RESERVE) {
+    return command === Actions.FARM;
+  }
+
+  if (command === Actions.STEAL || command === Actions.TRAMPLE) {
+    return potatoes >= Math.max(STEAL_RESERVE, protectedBalance(rank));
+  }
+
+  if (command === Actions.CDR) {
+    return hasSurplus(potatoes, rank, cdrCost(rank, prestige), CDR_MIN_SURPLUS);
+  }
+
+  if (command.startsWith("shop ")) {
+    return hasSurplus(potatoes, rank, shopCost(command, rank), SHOP_MIN_SURPLUS);
+  }
+
   return true;
 }
 
@@ -56,13 +134,13 @@ export const LevelsPlan: CommandPlan = [
 ];
 
 export const ShoppingPlan: CommandPlan = [
-  { command: Actions.SHOP_CDR, delay: FIFTEEN_SECONDS_MS },
-  { command: Actions.SHOP_GUARD, delay: FIFTEEN_SECONDS_MS },
   { command: Actions.SHOP_FERTILIZER, delay: FIFTEEN_SECONDS_MS },
+  { command: Actions.SHOP_CDR, delay: FIFTEEN_SECONDS_MS },
 ];
 
 export const FarmPlan: CommandPlan = [
-  { command: Actions.CDR, delay: FIFTEEN_SECONDS_MS },
-  { command: Actions.FARM, delay: FIFTEEN_SECONDS_MS },
   { command: Actions.STEAL, delay: FIFTEEN_SECONDS_MS },
+  { command: Actions.FARM, delay: FIFTEEN_SECONDS_MS },
+  { command: Actions.TRAMPLE, delay: FIFTEEN_SECONDS_MS },
+  { command: Actions.CDR, delay: FIFTEEN_SECONDS_MS },
 ];
