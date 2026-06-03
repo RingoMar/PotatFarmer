@@ -44,9 +44,8 @@ const SHOP_BASE_COSTS = {
 } as const;
 
 const LOW_BALANCE_RESERVE = 500;
-const STEAL_RESERVE = 2000;
-const CDR_MIN_SURPLUS = 1500;
-const SHOP_MIN_SURPLUS = 5000;
+const CDR_MIN_SURPLUS = 1000;
+const SHOP_MIN_SURPLUS = 2500;
 const PRESTIGE_BASE_COST = 100000;
 const PRESTIGE_STEP_COST = 20000;
 
@@ -69,29 +68,15 @@ function shopCost(command: Command, rank: RankValue): number {
   return baseCost * Math.max(1, rank);
 }
 
-function protectedBalance(rank: RankValue): number {
-  const nextCost = nextRankCost(rank);
-  if (nextCost === null) return LOW_BALANCE_RESERVE;
-  return nextCost + LOW_BALANCE_RESERVE;
+function isShopCommand(command: Command): boolean {
+  return command === Actions.SHOP_CDR || command === Actions.SHOP_GUARD || command === Actions.SHOP_FERTILIZER;
 }
 
-function hasSurplus(
-  potatoes: number,
-  rank: RankValue,
-  cost: number,
-  surplus: number,
-): boolean {
-  return potatoes - cost >= protectedBalance(rank) + surplus;
+function hasSurplus(potatoes: number, cost: number, surplus: number): boolean {
+  return potatoes - cost >= LOW_BALANCE_RESERVE + surplus;
 }
 
-export function shouldRun(
-  command: Command,
-  {
-    potatoes,
-    rank,
-    prestige,
-  }: { potatoes: number; rank: RankValue; prestige: number },
-): boolean {
+export function shouldRun(command: Command, { potatoes, rank, prestige }: { potatoes: number; rank: RankValue; prestige: number }): boolean {
   const nextCost = nextRankCost(rank);
 
   if (command === Actions.RANKUP) {
@@ -102,20 +87,20 @@ export function shouldRun(
     return rank === Rank.Industrial && potatoes >= PRESTIGE_BASE_COST + PRESTIGE_STEP_COST * prestige;
   }
 
-  if (potatoes < LOW_BALANCE_RESERVE) {
-    return command === Actions.FARM;
+  if (command === Actions.FARM || command === Actions.TRAMPLE) {
+    return true;
   }
 
-  if (command === Actions.STEAL || command === Actions.TRAMPLE) {
-    return potatoes >= Math.max(STEAL_RESERVE, protectedBalance(rank));
+  if (command === Actions.STEAL) {
+    return potatoes >= LOW_BALANCE_RESERVE;
   }
 
   if (command === Actions.CDR) {
-    return hasSurplus(potatoes, rank, cdrCost(rank, prestige), CDR_MIN_SURPLUS);
+    return hasSurplus(potatoes, cdrCost(rank, prestige), CDR_MIN_SURPLUS);
   }
 
-  if (command.startsWith("shop ")) {
-    return hasSurplus(potatoes, rank, shopCost(command, rank), SHOP_MIN_SURPLUS);
+  if (isShopCommand(command)) {
+    return hasSurplus(potatoes, shopCost(command, rank), SHOP_MIN_SURPLUS);
   }
 
   return true;
