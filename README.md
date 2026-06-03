@@ -15,6 +15,10 @@ npm run build
 npm run start
 ```
 
+### Balance protection
+
+Avoids risky or paid commands when balance is low or when it should be saving for rank progress.
+
 ### For PM2
 
 ```

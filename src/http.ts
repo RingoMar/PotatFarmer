@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createServer, type OutgoingHttpHeaders, type Server } from "node:http";
 import { URL } from "node:url";
 
@@ -15,6 +16,7 @@ const HTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/favicon.ico" type="image/png">
 <title>Potat Farmer</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box }
@@ -343,6 +345,12 @@ const HTML_HEADERS: OutgoingHttpHeaders = {
   "Cache-Control": "no-store",
   "Content-Length": HTML_BUF.length,
 };
+const FAVICON_BUF = readFileSync("src/utils/potato.png");
+const FAVICON_HEADERS: OutgoingHttpHeaders = {
+  "Content-Type": "image/png",
+  "Cache-Control": "public, max-age=86400",
+  "Content-Length": FAVICON_BUF.length,
+};
 
 export function startServer(): Server {
   const server = createServer((req, res) => {
@@ -352,6 +360,12 @@ export function startServer(): Server {
     if (req.method === "GET" && url === "/") {
       res.writeHead(200, HTML_HEADERS);
       res.end(HTML_BUF);
+      return;
+    }
+
+    if (req.method === "GET" && url === "/favicon.ico") {
+      res.writeHead(200, FAVICON_HEADERS);
+      res.end(FAVICON_BUF);
       return;
     }
 
