@@ -61,6 +61,8 @@ body { background:#0d0d0d; color:#ccc; font:13px/1.6 'Courier New',monospace; pa
     <div class="toolbar">
       <label>From <input id="from" type="datetime-local"></label>
       <label>To <input id="to" type="datetime-local"></label>
+      <button id="range1" type="button">1h</button>
+      <button id="range4" type="button">4h</button>
       <button id="range24" type="button">24h</button>
       <button id="range7" type="button">7d</button>
       <button id="apply" type="button">Apply</button>
@@ -128,16 +130,24 @@ let latestEvents = []
 let latestFrom = new Date(Date.now() - 86400000)
 let latestTo = new Date()
 let hover = null
+let liveRangeHours = 24
 function localInputValue(date) {
   const offsetMs = date.getTimezoneOffset() * 60000
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
 }
-function setRange(hours) {
+function updateRangeInputs(hours) {
   const to = new Date()
   const from = new Date(to.getTime() - hours * 3600000)
   document.getElementById('from').value = localInputValue(from)
   document.getElementById('to').value = localInputValue(to)
+}
+function setRange(hours) {
+  liveRangeHours = hours
+  updateRangeInputs(hours)
   refreshCharts()
+}
+function stopLiveRange() {
+  liveRangeHours = null
 }
 function inputDate(id) {
   const v = document.getElementById(id).value
@@ -277,6 +287,7 @@ function drawChart(def, events, from, to) {
   }
 }
 async function refreshCharts() {
+  if (liveRangeHours !== null) updateRangeInputs(liveRangeHours)
   const from = inputDate('from') || new Date(Date.now() - 86400000)
   const to = inputDate('to') || new Date()
   const qs = '?from=' + encodeURIComponent(from.toISOString()) + '&to=' + encodeURIComponent(to.toISOString())
@@ -315,9 +326,16 @@ async function refresh() {
     document.getElementById('foot').textContent = 'error: ' + String(e)
   }
 }
+document.getElementById('range1').addEventListener('click', () => setRange(1))
+document.getElementById('range4').addEventListener('click', () => setRange(4))
 document.getElementById('range24').addEventListener('click', () => setRange(24))
 document.getElementById('range7').addEventListener('click', () => setRange(24 * 7))
-document.getElementById('apply').addEventListener('click', refreshCharts)
+document.getElementById('from').addEventListener('input', stopLiveRange)
+document.getElementById('to').addEventListener('input', stopLiveRange)
+document.getElementById('apply').addEventListener('click', () => {
+  stopLiveRange()
+  refreshCharts()
+})
 chartDefs.forEach(def => {
   const canvas = document.getElementById(def.id)
   canvas.addEventListener('mousemove', e => {

@@ -121,6 +121,9 @@ function balanceCategory(command: string): string {
   const normalized = command.toLowerCase();
   if (command === Actions.STEAL) return "steal";
   if (command === Actions.FARM) return "harvest";
+  if (command === Actions.RANKUP) return "rankup";
+  if (command === Actions.PRESTIGE) return "prestige";
+  if (command === Actions.RANK) return "refresh";
   if (command === Actions.CDR || normalized.includes("cooldown") || command.startsWith("shop ")) return "shop_cdr";
   return "other";
 }
@@ -181,6 +184,23 @@ export function recordCommandResult(command: string, responseText: string | null
     // eslint-disable-next-line security/detect-object-injection
     sessionTotals[key] += increment[key];
   }
+}
+
+export function recordRefreshedBalanceChange(
+  command: string,
+  balanceBefore: number,
+  responseText: string,
+): void {
+  const delta = playerInfo.potatoes - balanceBefore;
+  if (delta === 0) return;
+  recordBalanceChange({
+    executedAt: new Date().toISOString(),
+    command,
+    category: balanceCategory(command),
+    delta,
+    balanceAfter: playerInfo.potatoes,
+    responseText: responseText.slice(0, 500),
+  });
 }
 
 function formatNumber(n: number): string {

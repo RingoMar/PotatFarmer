@@ -4,7 +4,7 @@ import { sendCommand, fetchRank } from "./api.js";
 import { initDb, closeDb } from "./db.js";
 import { startServer } from "./http.js";
 import { Actions, LevelsPlan, ShoppingPlan, FarmPlan, shouldRun, type CommandPlan } from "./plans.js";
-import { displayStats, playerInfo, recordCommandResult, setLastCommand, updateFromRank } from "./stats.js";
+import { displayStats, playerInfo, recordCommandResult, recordRefreshedBalanceChange, setLastCommand, updateFromRank } from "./stats.js";
 import { WEB_DASHBOARD_ENABLED, BOT_PREFIX } from "./utils/config.js";
 import { MINUTE_MS } from "./utils/constants.js";
 import { sleep } from "./utils/sleep.js";
@@ -33,9 +33,18 @@ process.on("uncaughtException", (err: Error) => {
   process.exit(1);
 });
 
-async function refreshRank(): Promise<void> {
+async function refreshRank(
+  balanceCommand?: string,
+  responseText?: string,
+): Promise<string | null> {
+  const hadPlayer = playerInfo.username !== "";
+  const balanceBeforeRefresh = playerInfo.potatoes;
   const text = await fetchRank();
   if (text) updateFromRank(text);
+  if (text && hadPlayer && balanceCommand) {
+    recordRefreshedBalanceChange(balanceCommand, balanceBeforeRefresh, responseText ?? text);
+  }
+  return text;
 }
 
 async function runPlan(plan: CommandPlan): Promise<void> {
@@ -49,9 +58,13 @@ async function runPlan(plan: CommandPlan): Promise<void> {
       if (result.text !== null) setLastCommand(`${BOT_PREFIX}${step.command}`);
       recordCommandResult(step.command, result.text, result.isError);
 
-      // Prestige zeros your balance, re-fetch immediately
-      if (step.command === Actions.PRESTIGE && !result.isError && result.text !== null) {
-        await refreshRank();
+      // Rank-changing commands do not include the normal balance bracket.
+      if (
+        (step.command === Actions.RANKUP || step.command === Actions.PRESTIGE) &&
+        !result.isError &&
+        result.text !== null
+      ) {
+        await refreshRank(step.command, result.text);
       }
     } catch (err) {
       process.stderr.write(`command "${step.command}": ${String(err)}\n`);
@@ -73,7 +86,7 @@ async function run(): Promise<never> {
     await runPlan(LevelsPlan);
     await runPlan(ShoppingPlan);
     await runPlan(FarmPlan);
-    await refreshRank();
+    await refreshRank(Actions.RANK);
     await sleep(MINUTE_MS);
   }
 }
