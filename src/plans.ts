@@ -38,9 +38,9 @@ const RANK_COSTS: Record<RankValue, number> = {
 };
 
 const SHOP_BASE_COSTS = {
-  [Actions.SHOP_CDR]: 500,
-  [Actions.SHOP_GUARD]: 1500,
-  [Actions.SHOP_FERTILIZER]: 2000,
+  [Actions.SHOP_CDR]: 30,
+  [Actions.SHOP_GUARD]: 100,
+  [Actions.SHOP_FERTILIZER]: 30,
 } as const;
 
 const LOW_BALANCE_RESERVE = 500;
@@ -92,7 +92,7 @@ export function shouldRun(command: Command, { potatoes, rank, prestige }: { pota
   }
 
   if (command === Actions.STEAL) {
-    return potatoes >= LOW_BALANCE_RESERVE;
+    return false;
   }
 
   if (command === Actions.CDR) {
@@ -120,6 +120,7 @@ export const LevelsPlan: CommandPlan = [
 
 export const ShoppingPlan: CommandPlan = [
   { command: Actions.SHOP_FERTILIZER, delay: FIFTEEN_SECONDS_MS },
+  { command: Actions.SHOP_GUARD, delay: FIFTEEN_SECONDS_MS },
   { command: Actions.SHOP_CDR, delay: FIFTEEN_SECONDS_MS },
 ];
 
