@@ -11,6 +11,7 @@ export const Actions = {
   PRESTIGE: "prestige",
   RANK: "rank",
   TRAMPLE: "trample",
+  EAT: "eat",
 } as const;
 
 export type Command = (typeof Actions)[keyof typeof Actions];
@@ -129,4 +130,5 @@ export const FarmPlan: CommandPlan = [
   { command: Actions.FARM, delay: FIFTEEN_SECONDS_MS },
   { command: Actions.TRAMPLE, delay: FIFTEEN_SECONDS_MS },
   { command: Actions.CDR, delay: FIFTEEN_SECONDS_MS },
+  { command: Actions.EAT, delay: FIFTEEN_SECONDS_MS },
 ];
