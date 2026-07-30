@@ -124,7 +124,7 @@ const chartDefs = [
   { id: 'overview', title: 'Overview', filter: e => true, mode: 'balance', style: 'line' },
   { id: 'steal', title: 'Steal', filter: e => e.category === 'steal', mode: 'delta', style: 'bar' },
   { id: 'harvest', title: 'Potato / Harvest', filter: e => e.category === 'harvest', mode: 'delta', style: 'line' },
-  { id: 'shop', title: 'Shop & CDR', filter: e => e.category === 'shop_cdr' || e.command === 'cdr' || e.command.startsWith('shop ') || e.command.includes('cooldown'), mode: 'delta', style: 'bar' },
+  { id: 'shop', title: 'Shop & CDR', filter: e => e.category === 'shop_cdr' || e.command === 'cdr' || e.command === 'eat' || e.command.startsWith('shop ') || e.command.includes('cooldown'), mode: 'delta', style: 'bar' },
 ]
 const chartPad = { l: 58, r: 14, t: 16, b: 34 }
 let latestEvents = []

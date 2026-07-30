@@ -124,7 +124,7 @@ function balanceCategory(command: string): string {
   if (command === Actions.RANKUP) return "rankup";
   if (command === Actions.PRESTIGE) return "prestige";
   if (command === Actions.RANK) return "refresh";
-  if (command === Actions.CDR || normalized.includes("cooldown") || command.startsWith("shop ")) return "shop_cdr";
+  if (command === Actions.CDR || command === Actions.EAT || normalized.includes("cooldown") || command.startsWith("shop ")) return "shop_cdr";
   return "other";
 }
 
