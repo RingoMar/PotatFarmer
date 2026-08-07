@@ -54,7 +54,7 @@ export const playerInfo: PlayerInfo = {
 };
 
 export function updateFromRank(text: string): void {
-  const username = text.match(/@(\w+)/)?.[1];
+  const username = text.match(/^(\S+)\s+has\s+-?[\d,]+\s+potatoes/)?.[1] ?? text.match(/@(\w+)/)?.[1];
   const potatoes = text.match(/has (-?[\d,]+) potatoes/)?.[1];
   const prestige = text.match(/Prestige: (\d+)/)?.[1];
   const harvests = text.match(/Harvests: ([\d,]+)/)?.[1];
@@ -158,6 +158,15 @@ export function recordCommandResult(command: string, responseText: string | null
       category: balanceCategory(command),
       delta: balanceChange.delta,
       balanceAfter: balanceChange.balanceAfter,
+      responseText: responseText.slice(0, 500),
+    });
+  } else if (command === Actions.EAT && !isError) {
+    recordBalanceChange({
+      executedAt: new Date().toISOString(),
+      command,
+      category: balanceCategory(command),
+      delta: 0,
+      balanceAfter: playerInfo.potatoes,
       responseText: responseText.slice(0, 500),
     });
   }

@@ -15,6 +15,7 @@ export const Actions = {
 } as const;
 
 export type Command = (typeof Actions)[keyof typeof Actions];
+type ShopCommand = typeof Actions.SHOP_CDR | typeof Actions.SHOP_GUARD | typeof Actions.SHOP_FERTILIZER;
 
 export const Rank = {
   Bankrupt: 0,
@@ -38,12 +39,6 @@ const RANK_COSTS: Record<RankValue, number> = {
   [Rank.Industrial]: 50000,
 };
 
-const SHOP_BASE_COSTS = {
-  [Actions.SHOP_CDR]: 30,
-  [Actions.SHOP_GUARD]: 100,
-  [Actions.SHOP_FERTILIZER]: 30,
-} as const;
-
 const LOW_BALANCE_RESERVE = 500;
 const CDR_MIN_SURPLUS = 10000;
 const SHOP_MIN_SURPLUS = 5000;
@@ -60,17 +55,16 @@ function cdrCost(rank: RankValue, prestige: number): number {
 
 function nextRankCost(rank: RankValue): number | null {
   if (rank >= Rank.Industrial) return null;
-  return RANK_COSTS[(rank + 1) as RankValue] ?? null;
+  return RANK_COSTS[(rank + 1) as RankValue];
 }
 
-function shopCost(command: Command, rank: RankValue): number {
-  const baseCost = SHOP_BASE_COSTS[command as keyof typeof SHOP_BASE_COSTS];
-  if (!baseCost) return 0;
-  return baseCost * Math.max(1, rank);
-}
-
-function isShopCommand(command: Command): boolean {
+function isShopCommand(command: Command): command is ShopCommand {
   return command === Actions.SHOP_CDR || command === Actions.SHOP_GUARD || command === Actions.SHOP_FERTILIZER;
+}
+
+function shopCost(command: ShopCommand, rank: RankValue): number {
+  const baseCost = command === Actions.SHOP_GUARD ? 100 : 30;
+  return baseCost * Math.max(1, rank);
 }
 
 function hasSurplus(potatoes: number, cost: number, surplus: number): boolean {
@@ -81,14 +75,14 @@ export function shouldRun(command: Command, { potatoes, rank, prestige }: { pota
   const nextCost = nextRankCost(rank);
 
   if (command === Actions.RANKUP) {
-    return nextCost !== null && potatoes >= nextCost;
+    return nextCost !== null && hasSurplus(potatoes, nextCost, 0);
   }
 
   if (command === Actions.PRESTIGE) {
     return rank === Rank.Industrial && potatoes >= PRESTIGE_BASE_COST + PRESTIGE_STEP_COST * prestige;
   }
 
-  if (command === Actions.FARM || command === Actions.TRAMPLE) {
+  if (command === Actions.FARM || command === Actions.TRAMPLE || command === Actions.EAT) {
     return true;
   }
 
