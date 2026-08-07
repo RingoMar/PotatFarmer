@@ -1,10 +1,11 @@
+import { readFileSync } from "node:fs";
 import { createServer, type OutgoingHttpHeaders, type Server } from "node:http";
 
+import { WEB_PORT } from "./config.js";
 import { DASHBOARD_HTML } from "./dashboard.js";
 import { cache, getBalanceEvents } from "./db.js";
-import { playerInfo, sessionTotals, sessionStart } from "./stats.js";
-import { WEB_PORT } from "./config.js";
 import { log } from "./logger.js";
+import { playerInfo, sessionTotals, sessionStart } from "./stats.js";
 
 const JSON_HEADERS: OutgoingHttpHeaders = {
   "Content-Type": "application/json",
@@ -17,6 +18,12 @@ const HTML_HEADERS: OutgoingHttpHeaders = {
   "Cache-Control": "no-store",
   "Content-Length": HTML_BUF.length,
 };
+const FAVICON_BUF = readFileSync("src/potato.png");
+const FAVICON_HEADERS: OutgoingHttpHeaders = {
+  "Content-Type": "image/png",
+  "Cache-Control": "public, max-age=86400",
+  "Content-Length": FAVICON_BUF.length,
+};
 
 export function startServer(): Server {
   const server = createServer((req, res) => {
@@ -27,6 +34,18 @@ export function startServer(): Server {
     if (req.method === "GET" && url === "/") {
       res.writeHead(200, HTML_HEADERS);
       res.end(HTML_BUF);
+      log.debug("HTTP request completed", {
+        method: req.method,
+        path: url,
+        status: 200,
+        durationMs: Date.now() - startedAt,
+      });
+      return;
+    }
+
+    if (req.method === "GET" && url === "/favicon.ico") {
+      res.writeHead(200, FAVICON_HEADERS);
+      res.end(FAVICON_BUF);
       log.debug("HTTP request completed", {
         method: req.method,
         path: url,

@@ -50,6 +50,8 @@ body { background:#0d0d0d; color:#ccc; font:13px/1.6 'Courier New',monospace; pa
       <label>To <input id="to" type="datetime-local"></label>
       <button id="range1" type="button">1h</button>
       <button id="range4" type="button">4h</button>
+      <button id="range8" type="button">8h</button>
+      <button id="range12" type="button">12h</button>
       <button id="range24" type="button">24h</button>
       <button id="range7" type="button">7d</button>
       <button id="apply" type="button">Apply</button>
@@ -361,6 +363,8 @@ async function refresh() {
 }
 document.getElementById('range1').addEventListener('click', () => setRange(1))
 document.getElementById('range4').addEventListener('click', () => setRange(4))
+document.getElementById('range8').addEventListener('click', () => setRange(8))
+document.getElementById('range12').addEventListener('click', () => setRange(12))
 document.getElementById('range24').addEventListener('click', () => setRange(24))
 document.getElementById('range7').addEventListener('click', () => setRange(24 * 7))
 document.getElementById('from').addEventListener('input', stopLiveRange)

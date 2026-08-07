@@ -1,23 +1,32 @@
 import type { Server } from "node:http";
 
-import { sendCommand, fetchRank } from "./api.js";
+import { fetchRank, sendCommand } from "./api.js";
 import {
-  WEB_DASHBOARD_ENABLED,
-  CONSOLE_STATS_ENABLED,
   BOT_PREFIX,
-  COMMAND_DELAY,
-  STATUS_INTERVAL,
   CAN_RUN_QUIZZES,
+  COMMAND_DELAY,
+  CONSOLE_STATS_ENABLED,
+  STATUS_INTERVAL,
+  WEB_DASHBOARD_ENABLED,
 } from "./config.js";
-import { initDb, closeDb } from "./db.js";
+import { closeDb, initDb } from "./db.js";
 import { startServer } from "./http.js";
-import { Actions, shouldRun, type Command } from "./plans.js";
 import { formatLogText, log } from "./logger.js";
+import {
+  Actions,
+  FarmPlan,
+  LevelsPlan,
+  ShoppingPlan,
+  shouldRun,
+  type Command,
+  type CommandPlan,
+} from "./plans.js";
 import { runQuizPlan } from "./quiz.js";
 import {
   displayStats,
   playerInfo,
   recordCommandResult,
+  recordRefreshedBalanceChange,
   setLastCommand,
   updateFromRank,
 } from "./stats.js";
@@ -51,7 +60,12 @@ process.on("uncaughtException", (err: Error) => {
   process.exit(1);
 });
 
-async function refreshRank(): Promise<void> {
+async function refreshRank(
+  balanceCommand?: string,
+  responseText?: string,
+): Promise<string | null> {
+  const hadPlayer = playerInfo.username !== "";
+  const balanceBeforeRefresh = playerInfo.potatoes;
   const text = await fetchRank();
   if (text) {
     updateFromRank(text);
@@ -61,6 +75,14 @@ async function refreshRank(): Promise<void> {
       potatoes: playerInfo.potatoes,
     });
   }
+  if (text && hadPlayer && balanceCommand) {
+    recordRefreshedBalanceChange(
+      balanceCommand,
+      balanceBeforeRefresh,
+      responseText ?? text,
+    );
+  }
+  return text;
 }
 
 type StatusLabel =
@@ -132,6 +154,22 @@ interface ExecutedCommand {
   prestigeReady: boolean;
 }
 
+function appendReadyPlanCommands(
+  queue: Command[],
+  ready: ReadonlySet<Command>,
+  plan: CommandPlan,
+): void {
+  for (const { command } of plan) {
+    if (ready.has(command)) queue.push(command);
+  }
+}
+
+function buildRunnablePlanCommands(plan: CommandPlan): Command[] {
+  return plan
+    .filter(({ command }) => shouldRun(command, playerInfo))
+    .map(({ command }) => command);
+}
+
 async function executeCommand(command: Command): Promise<ExecutedCommand> {
   if (!shouldRun(command, playerInfo)) {
     log.info("Command skipped by plan guard", {
@@ -158,8 +196,9 @@ async function executeCommand(command: Command): Promise<ExecutedCommand> {
     if (
       (command === Actions.RANKUP || command === Actions.PRESTIGE) &&
       !result.isError
-    )
-      await refreshRank();
+    ) {
+      await refreshRank(command, result.text ?? undefined);
+    }
     const executed = {
       succeeded: !result.isError && result.text !== null,
       text: result.text,
@@ -187,6 +226,7 @@ async function executeCommand(command: Command): Promise<ExecutedCommand> {
 
 function buildQueueFromStatus(status: CooldownStatus): Command[] {
   const queue: Command[] = [];
+  const ready = new Set<Command>();
   const farmReady = status.Potato === true;
   const stealReady = status.Steal === true;
   const cdrReady = status.Cooldown === true;
@@ -195,18 +235,24 @@ function buildQueueFromStatus(status: CooldownStatus): Command[] {
   const cdrCoolingDown = status.Cooldown === false;
 
   if (farmCoolingDown && stealCoolingDown) {
-    if (cdrReady) queue.push(Actions.CDR);
+    if (cdrReady) ready.add(Actions.CDR);
     else if (cdrCoolingDown && status["Shop-Cdr"] === true)
-      queue.push(Actions.SHOP_CDR);
+      ready.add(Actions.SHOP_CDR);
   }
 
-  if (status["Shop-Guard"] === true) queue.push(Actions.SHOP_GUARD);
-  if (status["Shop-Fertilizer"] === true) queue.push(Actions.SHOP_FERTILIZER);
-  if (status.Eat === true) queue.push(Actions.EAT);
+  if (status["Shop-Guard"] === true) ready.add(Actions.SHOP_GUARD);
+  if (status["Shop-Fertilizer"] === true) ready.add(Actions.SHOP_FERTILIZER);
+  if (status.Eat === true) ready.add(Actions.EAT);
   if (!(farmCoolingDown && stealCoolingDown)) {
-    if (farmReady) queue.push(Actions.FARM);
-    if (stealReady) queue.push(Actions.STEAL);
+    if (farmReady) {
+      ready.add(Actions.FARM);
+      ready.add(Actions.TRAMPLE);
+    }
+    if (stealReady) ready.add(Actions.STEAL);
   }
+
+  appendReadyPlanCommands(queue, ready, ShoppingPlan);
+  appendReadyPlanCommands(queue, ready, FarmPlan);
 
   if (CAN_RUN_QUIZZES) {
     if (status.Quiz === true) queue.push(Actions.QUIZ);
@@ -225,9 +271,13 @@ async function runStatusCycle(): Promise<void> {
   }
 
   const status = parseStatus(statusResult.text);
-  const queue = buildQueueFromStatus(status);
+  const queue = [
+    ...buildRunnablePlanCommands(LevelsPlan),
+    ...buildQueueFromStatus(status),
+  ];
   log.info("Status queue built", { status, queue });
   const queued = new Set<Command>(queue);
+  let index = 0;
 
   const enqueue = (command: Command, next = false): void => {
     if (!queued.has(command)) {
@@ -238,10 +288,10 @@ async function runStatusCycle(): Promise<void> {
     }
   };
 
-  let index = 0;
   for (; index < queue.length; index += 1) {
     const command = queue.at(index);
     if (!command) continue;
+    queued.delete(command);
     await sleep(COMMAND_DELAY);
 
     let result: ExecutedCommand;
@@ -265,6 +315,7 @@ async function runStatusCycle(): Promise<void> {
       enqueue(Actions.CDR, true);
     if (result.succeeded && command === Actions.CDR) {
       enqueue(Actions.FARM);
+      enqueue(Actions.TRAMPLE);
       enqueue(Actions.STEAL);
     }
     if (result.succeeded && command === Actions.SHOP_QUIZ)

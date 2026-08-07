@@ -67,7 +67,9 @@ export const playerInfo: PlayerInfo = {
 };
 
 export function updateFromRank(text: string): void {
-  const username = text.match(/(\w+)/)?.[1];
+  const username =
+    text.match(/^(\S+)\s+has\s+-?[\d,]+\s+potatoes/)?.[1] ??
+    text.match(/@(\w+)/)?.[1];
   const potatoes = text.match(/has (-?[\d,]+) potatoes/)?.[1];
   const prestige = text.match(/Prestige: (\d+)/)?.[1];
   const harvests = text.match(/Harvests: ([\d,]+)/)?.[1];
@@ -115,6 +117,13 @@ function parseBalanceChange(text: string): BalanceChange | null {
   };
 }
 
+/** Pulls the running potato total out of a bot reply if one is present. */
+export function updateBalanceFromResponse(text: string): void {
+  const change = parseBalanceChange(text);
+  if (!change) return;
+  playerInfo.potatoes = change.balanceAfter;
+}
+
 export function setLastCommand(command: string): void {
   playerInfo.lastCommand = command;
 }
@@ -152,11 +161,16 @@ const TRACKED_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 function balanceCategory(command: string): string {
+  const normalized = command.toLowerCase();
   if (command === Actions.STEAL) return "steal";
   if (command === Actions.FARM) return "harvest";
+  if (command === Actions.RANKUP) return "rankup";
+  if (command === Actions.PRESTIGE) return "prestige";
+  if (command === Actions.RANK) return "refresh";
   if (
     command === Actions.CDR ||
     command === Actions.EAT ||
+    normalized.includes("cooldown") ||
     command.startsWith("shop ")
   )
     return "shop_cdr";
@@ -198,15 +212,6 @@ export function recordCommandResult(
   isError: boolean,
 ): void {
   if (responseText === null) return;
-  if (COOLDOWN_REGEX.test(responseText)) {
-    log.debug("Ignoring cooldown response for stats", { command });
-    return;
-  }
-  if (command === Actions.FARM && /♻⏰/.test(responseText)) {
-    log.debug("Ignoring recycled farm response for stats", { command });
-    return;
-  }
-
   const balanceChange = parseBalanceChange(responseText);
   if (balanceChange) {
     playerInfo.potatoes = balanceChange.balanceAfter;
@@ -218,6 +223,23 @@ export function recordCommandResult(
       balanceAfter: balanceChange.balanceAfter,
       responseText: responseText.slice(0, 500),
     });
+  } else if (command === Actions.EAT && !isError) {
+    recordBalanceChange({
+      executedAt: new Date().toISOString(),
+      command,
+      category: balanceCategory(command),
+      delta: 0,
+      balanceAfter: playerInfo.potatoes,
+      responseText: responseText.slice(0, 500),
+    });
+  }
+  if (COOLDOWN_REGEX.test(responseText)) {
+    log.debug("Ignoring cooldown response for stats", { command });
+    return;
+  }
+  if (command === Actions.FARM && /♻⏰/.test(responseText)) {
+    log.debug("Ignoring recycled farm response for stats", { command });
+    return;
   }
   if (!TRACKED_COMMANDS.has(command)) return;
 
@@ -247,6 +269,23 @@ export function recordCommandResult(
 
   addToStats(sessionTotals, increment);
   log.debug("Command stats recorded", { command, isError, delta, increment });
+}
+
+export function recordRefreshedBalanceChange(
+  command: string,
+  balanceBefore: number,
+  responseText: string,
+): void {
+  const delta = playerInfo.potatoes - balanceBefore;
+  if (delta === 0) return;
+  recordBalanceChange({
+    executedAt: new Date().toISOString(),
+    command,
+    category: balanceCategory(command),
+    delta,
+    balanceAfter: playerInfo.potatoes,
+    responseText: responseText.slice(0, 500),
+  });
 }
 
 function formatNumber(n: number): string {

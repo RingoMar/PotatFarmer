@@ -9,6 +9,7 @@ export const Actions = {
   RANKUP: "rankup",
   PRESTIGE: "prestige",
   RANK: "rank",
+  TRAMPLE: "trample",
   QUIZ: "quiz",
   ANSWER: "a",
   SHOP_QUIZ: "shop quiz",
@@ -16,6 +17,10 @@ export const Actions = {
 } as const;
 
 export type Command = (typeof Actions)[keyof typeof Actions];
+type ShopCommand =
+  | typeof Actions.SHOP_CDR
+  | typeof Actions.SHOP_GUARD
+  | typeof Actions.SHOP_FERTILIZER;
 
 export const Rank = {
   Bankrupt: 0,
@@ -29,11 +34,50 @@ export const Rank = {
 
 export type RankValue = (typeof Rank)[keyof typeof Rank];
 
-// cdr has no server-side rejection if you can't afford it, cost is floor(15 * rank * (1 + prestige * 0.1))
+const RANK_COSTS: Record<RankValue, number> = {
+  [Rank.Bankrupt]: -1000,
+  [Rank.BackyardGarden]: 200,
+  [Rank.Greenhouse]: 1000,
+  [Rank.AcreFarm]: 5000,
+  [Rank.TenAcreFarm]: 10000,
+  [Rank.PotatoPlantation]: 25000,
+  [Rank.Industrial]: 50000,
+};
+
+const LOW_BALANCE_RESERVE = 500;
+const CDR_MIN_SURPLUS = 10000;
+const SHOP_MIN_SURPLUS = 5000;
+const PRESTIGE_BASE_COST = 100000;
+const PRESTIGE_STEP_COST = 20000;
+
+// cdr has no server-side rejection if you can't afford it - it just silently
+// goes negative. Cost is floor(15 * rank * (1 + prestige * 0.1)).
 function cdrCost(rank: RankValue, prestige: number): number {
   const effectiveRank = rank !== Rank.Bankrupt ? rank : 5;
   const prestigeMulti = prestige >= 1 ? 1 + prestige * 0.1 : 1;
   return Math.floor(15 * effectiveRank * prestigeMulti);
+}
+
+function nextRankCost(rank: RankValue): number | null {
+  if (rank >= Rank.Industrial) return null;
+  return RANK_COSTS[(rank + 1) as RankValue];
+}
+
+function isShopCommand(command: Command): command is ShopCommand {
+  return (
+    command === Actions.SHOP_CDR ||
+    command === Actions.SHOP_GUARD ||
+    command === Actions.SHOP_FERTILIZER
+  );
+}
+
+function shopCost(command: ShopCommand, rank: RankValue): number {
+  const baseCost = command === Actions.SHOP_GUARD ? 100 : 30;
+  return baseCost * Math.max(1, rank);
+}
+
+function hasSurplus(potatoes: number, cost: number, surplus: number): boolean {
+  return potatoes - cost >= LOW_BALANCE_RESERVE + surplus;
 }
 
 export function shouldRun(
@@ -44,9 +88,71 @@ export function shouldRun(
     prestige,
   }: { potatoes: number; rank: RankValue; prestige: number },
 ): boolean {
-  if (command === Actions.CDR) {
-    // 100 potato buffer on top of the cost
-    return potatoes >= cdrCost(rank, prestige) + 100;
+  const nextCost = nextRankCost(rank);
+
+  if (command === Actions.RANKUP) {
+    return nextCost !== null && hasSurplus(potatoes, nextCost, 0);
   }
+
+  if (command === Actions.PRESTIGE) {
+    return (
+      rank === Rank.Industrial &&
+      potatoes >= PRESTIGE_BASE_COST + PRESTIGE_STEP_COST * prestige
+    );
+  }
+
+  if (
+    command === Actions.FARM ||
+    command === Actions.TRAMPLE ||
+    command === Actions.EAT ||
+    command === Actions.QUIZ ||
+    command === Actions.ANSWER ||
+    command === Actions.SHOP_QUIZ ||
+    command === Actions.STATUS ||
+    command === Actions.RANK
+  ) {
+    return true;
+  }
+
+  if (command === Actions.STEAL) {
+    return false;
+  }
+
+  if (command === Actions.CDR) {
+    return hasSurplus(potatoes, cdrCost(rank, prestige), CDR_MIN_SURPLUS);
+  }
+
+  if (isShopCommand(command)) {
+    return hasSurplus(potatoes, shopCost(command, rank), SHOP_MIN_SURPLUS);
+  }
+
   return true;
 }
+
+const PLAN_STEP_DELAY_MS = 15 * 1_000;
+
+export interface PlanStep {
+  command: Command;
+  delay: number;
+}
+
+export type CommandPlan = PlanStep[];
+
+export const LevelsPlan: CommandPlan = [
+  { command: Actions.RANKUP, delay: PLAN_STEP_DELAY_MS },
+  { command: Actions.PRESTIGE, delay: PLAN_STEP_DELAY_MS },
+];
+
+export const ShoppingPlan: CommandPlan = [
+  { command: Actions.SHOP_FERTILIZER, delay: PLAN_STEP_DELAY_MS },
+  { command: Actions.SHOP_GUARD, delay: PLAN_STEP_DELAY_MS },
+  { command: Actions.SHOP_CDR, delay: PLAN_STEP_DELAY_MS },
+];
+
+export const FarmPlan: CommandPlan = [
+  { command: Actions.STEAL, delay: PLAN_STEP_DELAY_MS },
+  { command: Actions.EAT, delay: PLAN_STEP_DELAY_MS },
+  { command: Actions.FARM, delay: PLAN_STEP_DELAY_MS },
+  { command: Actions.TRAMPLE, delay: PLAN_STEP_DELAY_MS },
+  { command: Actions.CDR, delay: PLAN_STEP_DELAY_MS },
+];
